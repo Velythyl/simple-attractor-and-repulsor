@@ -3,11 +3,9 @@ import torch
 import matplotlib.pyplot as plt
 
 class Planner:
-    def __init__(self, max_vel):
+    def __init__(self):
         self.attractors = []
         self.repulsors = []
-
-        self.max_vel = max_vel
 
     def set_attractor(self, target_state, weight_mat):
         def attractor(robot_state):
@@ -15,9 +13,6 @@ class Planner:
             x = torch.matmul(state_diff.T, weight_mat)
             x2 = torch.matmul(x, state_diff)
             attract = 0.5 * x2
-
-            #attract = torch.clip(attract, -self.max_vel, self.max_vel)
-
             return attract
         self.attractors.append(attractor)
 
@@ -27,10 +22,8 @@ class Planner:
             denom = 2 * state_diff.T @ state_diff
             repulse = weight_mat / denom
 
-            #repulse = torch.clip(repulse, -self.max_vel, self.max_vel)
-            return repulse
             abs_diff = torch.abs(state_diff)
-            thresh = torch.sum(abs_diff < min_dist).float()
+            thresh = torch.sum(abs_diff > min_dist).float()
 
             repulse_thresholded = repulse * thresh
             return repulse_thresholded
@@ -65,7 +58,7 @@ class Episode:
         self.dt = dt
         self.decimation = decimation
 
-        self.planner = Planner(0.2)
+        self.planner = Planner()
 
     def add_goal(self, goal, mat):
         self.goals.append(goal)
@@ -85,10 +78,8 @@ class Episode:
         robot = self.robot_init.clone()
         robot_history = []
         for i in range(1000):
-            pos = robot.clone().numpy()
-            robot_history.append(pos)
-            print(pos)
-            velocities = torch.clip(self.planner.potential(robot), -self.planner.max_vel, self.planner.max_vel)
+            robot_history.append(robot.clone().numpy())
+            velocities = self.planner.potential(robot)
             for _ in range(self.decimation):
                 robot += velocities * self.dt
         robot_history = np.array(robot_history)
@@ -169,15 +160,11 @@ if __name__ == "__main__":
         [3.245,2.655]
     ]:
         add_square(temp)
-
-    #sq = square([2.065, 2.655], 2.065, 10)
-    #for sq_point in sq:
-    #    episode.add_obstacle(sq_point, 0.1)
     episode.add_obstacle(torch.tensor([3.64, 0]), 4)
-    #episode.add_obstacle(torch.tensor([2.065, 0]), 4)
 
     goal_w = torch.eye(2)
     goal_w[1,1] = 0.5
     episode.add_goal(torch.tensor([2.065,3.9825]), torch.eye(2))
     episode.compile()
+    episode.run()
     episode.run()
