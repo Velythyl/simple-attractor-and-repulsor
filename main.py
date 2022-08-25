@@ -81,16 +81,20 @@ class Episode:
         for goal in zip(self.goals, self.goals_mats):
             self.planner.set_attractor(*goal)
 
+    def query(self, robot_pose):
+        velocities = torch.clip(self.planner.potential(robot_pose), -self.planner.max_vel, self.planner.max_vel)
+        return velocities.clone().detach().cpu().numpy()
+
     def run(self):
         robot = self.robot_init.clone()
         robot_history = []
         for i in range(1000):
             pos = robot.clone().numpy()
             robot_history.append(pos)
-            print(pos)
             velocities = torch.clip(self.planner.potential(robot), -self.planner.max_vel, self.planner.max_vel)
             for _ in range(self.decimation):
                 robot += velocities * self.dt
+            print("des_vel:", velocities)
         robot_history = np.array(robot_history)
 
         plt.plot(robot_history[:, 0], robot_history[:, 1])
@@ -180,4 +184,6 @@ if __name__ == "__main__":
     goal_w[1,1] = 0.5
     episode.add_goal(torch.tensor([2.065,3.9825]), torch.eye(2))
     episode.compile()
+
+
     episode.run()
