@@ -50,11 +50,12 @@ class Planner:
         return final_velocities
 
 class Episode:
-    def __init__(self, robot_init, dt, decimation, max_vel):
+    def __init__(self, robot_init, dt, decimation, max_vel, termination_radius):
         self.robot_init = robot_init
 
         self.goals_mats = []
         self.goals = []
+        self.termination_radius = termination_radius
 
         self.obstacles_weights = []
         self.obstacles = []
@@ -65,6 +66,7 @@ class Episode:
 
         self.planner = Planner()
         self.max_vel = max_vel
+
 
     def add_goal(self, goal, mat):
         self.goals.append(goal)
@@ -84,10 +86,18 @@ class Episode:
         velocities = torch.clip(self.planner.potential(robot_pose), -self.max_vel, self.max_vel)
         return velocities.clone().detach().cpu().numpy()
 
+    def is_done(self, robot_pose: torch.Tensor):
+        goals = torch.concat(self.goals)
+        dist = torch.linalg.norm(robot_pose - goals)
+        done = (dist < self.termination_radius).all()
+        return done
+
     def run(self):
         robot = self.robot_init.clone()
         robot_history = []
         for i in range(1000):
+            if self.is_done(robot.clone()):
+                break
             pos = robot.clone().numpy()
             robot_history.append(pos)
             velocities = torch.clip(self.planner.potential(robot), -self.max_vel, self.max_vel)
@@ -157,7 +167,8 @@ if __name__ == "__main__":
         robot_init=torch.tensor([2.065, 1.475]),
         dt=0.01,
         decimation=4,
-        max_vel=torch.tensor([0.2, 0.1])
+        max_vel=torch.tensor([0.2, 0.1]),
+        termination_radius=0.1
     )
 
     def obs_sq(pos):
