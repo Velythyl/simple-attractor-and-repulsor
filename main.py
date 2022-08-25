@@ -3,11 +3,9 @@ import torch
 import matplotlib.pyplot as plt
 
 class Planner:
-    def __init__(self, max_vel):
+    def __init__(self):
         self.attractors = []
         self.repulsors = []
-
-        self.max_vel = max_vel
 
     def set_attractor(self, target_state, weight_mat):
         def attractor(robot_state):
@@ -52,7 +50,7 @@ class Planner:
         return final_velocities
 
 class Episode:
-    def __init__(self, robot_init, dt, decimation):
+    def __init__(self, robot_init, dt, decimation, max_vel):
         self.robot_init = robot_init
 
         self.goals_mats = []
@@ -65,7 +63,8 @@ class Episode:
         self.dt = dt
         self.decimation = decimation
 
-        self.planner = Planner(0.2)
+        self.planner = Planner()
+        self.max_vel = max_vel
 
     def add_goal(self, goal, mat):
         self.goals.append(goal)
@@ -82,7 +81,7 @@ class Episode:
             self.planner.set_attractor(*goal)
 
     def query(self, robot_pose):
-        velocities = torch.clip(self.planner.potential(robot_pose), -self.planner.max_vel, self.planner.max_vel)
+        velocities = torch.clip(self.planner.potential(robot_pose), -self.max_vel, self.max_vel)
         return velocities.clone().detach().cpu().numpy()
 
     def run(self):
@@ -91,7 +90,7 @@ class Episode:
         for i in range(1000):
             pos = robot.clone().numpy()
             robot_history.append(pos)
-            velocities = torch.clip(self.planner.potential(robot), -self.planner.max_vel, self.planner.max_vel)
+            velocities = torch.clip(self.planner.potential(robot), -self.max_vel, self.max_vel)
             for _ in range(self.decimation):
                 robot += velocities * self.dt
             print("des_vel:", velocities)
@@ -157,11 +156,12 @@ if __name__ == "__main__":
     episode = Episode(
         robot_init=torch.tensor([2.065, 1.475]),
         dt=0.01,
-        decimation=4
+        decimation=4,
+        max_vel=torch.tensor([0.2, 0.1])
     )
 
     def obs_sq(pos):
-        return square(pos, 0.59, 10)
+        return square(pos, 0.75, 10)
 
     def add_square(sq):
         for sq_point in obs_sq(sq):
